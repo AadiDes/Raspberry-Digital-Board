@@ -1,0 +1,19 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# DB
+*.db
+
+# Virtual Envs
+env/
+venv/
+
+# Logs
+*.log
+
+# System
+.DS_Store
+
+# VSCode
+.vscode/
