@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 50px;
+            background: #f7f7f7;
+        }
+        form {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 500px;
+        }
+        label, input {
+            display: block;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        input[type="submit"] {
+            background: #007bff;
+            color: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+        }
+        h2 { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h2>Update Display Values</h2>
+    <form method="POST">
+        <label>Production (MT):
+            <input type="text" name="production" value="{{ data['production'] }}">
+        </label>
+        <label>No of Heats:
+            <input type="text" name="num_heats" value="{{ data['num_heats'] }}">
+        </label>
+        <label>Monthly Production (MT):
+            <input type="text" name="month_prod" value="{{ data['month_prod'] }}">
+        </label>
+        <label>Safety Slogan:
+            <input type="text" name="slogan" value="{{ data['slogan'] }}">
+        </label>
+        <label>Manpower Strength:
+            <input type="text" name="manpower" value="{{ data['manpower'] }}">
+        </label>
+        <label>Employee of the Month:
+            <input type="text" name="employee_name" value="{{ data['employee_name'] }}">
+        </label>
+        <input type="submit" value="Update Display">
+    </form>
+</body>
+</html>

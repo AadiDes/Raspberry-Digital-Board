@@ -1,0 +1,14 @@
+Flask==2.3.3
+Jinja2==3.1.3
+Werkzeug==2.3.7
+itsdangerous==2.1.2
+click==8.1.7
+
+# Image uploads and scheduling
+Pillow==10.4.0
+APScheduler==3.10.4
+
+# SQLite is built-in with Python, no need to add
+
+# Optional: helpful for production logging/debugging
+python-dotenv==1.0.1
