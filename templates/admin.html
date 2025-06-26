@@ -197,7 +197,7 @@
 
     <div class="status-info">
       <h4>📊 Current Status</h4>
-      <p><strong>Last Updated:</strong> {{ last_updated.strftime('%A, %B %d, %Y at %H:%M:%S') }}</p>
+      <p><strong>Last Updated:</strong> {{ last_updated }}</p>
       {% if image_path %}
         <p><strong>Active Image:</strong> Yes
           {% if image_expiry %}

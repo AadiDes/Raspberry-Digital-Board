@@ -4,127 +4,111 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import os
 import uuid
+from database import init_db, DB_PATH
+from db_manager import get_display_state, update_display_state  # NEW IMPORT
 
-# Load environment variables from .env if present
+# Load environment variables
 load_dotenv()
 
+# Initialize database
+init_db()
+
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'  # Set securely in production!
+app.secret_key = 'your-secret-key-change-this'
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'changeme')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# In-memory factory data
-factory_data = {
-    'production': 0,
-    'heats': 0,
-    'monthly_production': 0,
-    'safety_slogan': 'Safety First!',
-    'manpower_strength': 0,
-    'employee_month': 'John Doe',
-    'image_path': None,
-    'image_expiry': None,
-    'last_updated': datetime.now()
-}
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def is_image_expired():
-    expiry = factory_data.get('image_expiry')
+def is_image_expired(expiry):
     return expiry and datetime.now() > expiry
 
 def get_current_image():
-    if factory_data['image_path']:
-        if is_image_expired():
-            factory_data['image_path'] = None
-            factory_data['image_expiry'] = None
+    state = get_display_state()
+    if state['image_path']:
+        if is_image_expired(state['image_expiry']):
+            update_display_state({'image_path': None, 'image_expiry': None})
             return None
-        return factory_data['image_path']
+        return state['image_path']
     return None
 
 def cleanup_uploads_folder():
-    """Remove all unused images in the uploads folder except the current active image"""
-    active_image = factory_data.get('image_path')
+    current_image = get_display_state()['image_path']
     upload_dir = os.path.join(app.static_folder, 'uploads')
-
     for filename in os.listdir(upload_dir):
         filepath = os.path.join(upload_dir, filename)
-
-        # If it's not the active image, delete it
-        if f'uploads/{filename}' != active_image:
+        if f'uploads/{filename}' != current_image:
             try:
                 os.remove(filepath)
             except Exception as e:
                 print(f"⚠️ Failed to remove old image {filename}: {e}")
 
-
 @app.route('/')
 def display():
+    state = get_display_state()
     return render_template('display.html', **{
         'current_time': datetime.now(),
-        'production': factory_data['production'],
-        'heats': factory_data['heats'],
-        'monthly_production': factory_data['monthly_production'],
-        'safety_slogan': factory_data['safety_slogan'],
-        'manpower_strength': factory_data['manpower_strength'],
-        'employee_month': factory_data['employee_month'],
+        'production': state['production'],
+        'heats': state['heats'],
+        'monthly_production': state['monthly_production'],
+        'safety_slogan': state['safety_slogan'],
+        'manpower_strength': state['manpower_strength'],
+        'employee_month': state['employee_month'],
         'image_path': get_current_image(),
-        'last_updated': factory_data['last_updated']
+        'last_updated': state['last_updated']
     })
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
     if request.method == 'POST':
-        password = request.form.get('admin_password', '').strip()
-        if password != ADMIN_PASSWORD:
+        if request.form.get('admin_password', '').strip() != ADMIN_PASSWORD:
             flash('❌ Incorrect password. Please try again.', 'error')
             return redirect(url_for('admin'))
 
         try:
-            factory_data['production'] = int(request.form.get('production', 0))
-            factory_data['heats'] = int(request.form.get('heats', 0))
-            factory_data['monthly_production'] = int(request.form.get('monthly_production', 0))
-            factory_data['safety_slogan'] = request.form.get('safety_slogan', '').strip()[:50]
-            factory_data['manpower_strength'] = int(request.form.get('manpower_strength', 0))
-            factory_data['employee_month'] = request.form.get('employee_month', '').strip()[:24]
+            updates = {
+                'production': int(request.form.get('production', 0)),
+                'heats': int(request.form.get('heats', 0)),
+                'monthly_production': int(request.form.get('monthly_production', 0)),
+                'safety_slogan': request.form.get('safety_slogan', '').strip()[:50],
+                'manpower_strength': int(request.form.get('manpower_strength', 0)),
+                'employee_month': request.form.get('employee_month', '').strip()[:24],
+                'last_updated': datetime.now()
+            }
 
-            if 'image_file' in request.files:
-                file = request.files['image_file']
-                if file and file.filename and allowed_file(file.filename):
+            # Handle image upload
+            file = request.files.get('image_file')
+            if file and file.filename:
+                if allowed_file(file.filename):
                     filename = str(uuid.uuid4()) + '_' + secure_filename(file.filename)
                     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     file.save(filepath)
-                    factory_data['image_path'] = f'uploads/{filename}'
+                    updates['image_path'] = f'uploads/{filename}'
 
                     duration = request.form.get('image_duration', type=int)
-                    factory_data['image_expiry'] = (
-                        datetime.now() + timedelta(seconds=duration)
-                        if duration and duration > 0 else None
-                    )
+                    updates['image_expiry'] = datetime.now() + timedelta(seconds=duration) if duration else None
                     flash('🖼️ Image uploaded successfully!', 'success')
-                elif file and file.filename:
+                else:
                     flash('⚠️ Invalid file type.', 'error')
 
+            # Remove image
             if request.form.get('remove_image'):
-                factory_data['image_path'] = None
-                factory_data['image_expiry'] = None
+                updates['image_path'] = None
+                updates['image_expiry'] = None
                 flash('🧹 Image removed successfully!', 'success')
 
-            factory_data['last_updated'] = datetime.now()
-            flash('✅ Factory metrics updated successfully!', 'success')
-
-            # Cleanup old uploaded images
+            update_display_state(updates)
             cleanup_uploads_folder()
-
-
+            flash('✅ Factory metrics updated successfully!', 'success')
 
         except ValueError:
             flash('⚠️ Please enter valid numbers for numeric fields.', 'error')
@@ -133,31 +117,43 @@ def admin():
 
         return redirect(url_for('admin'))
 
+    state = get_display_state()
     return render_template('admin.html', **{
-        'production': factory_data['production'],
-        'heats': factory_data['heats'],
-        'monthly_production': factory_data['monthly_production'],
-        'safety_slogan': factory_data['safety_slogan'],
-        'manpower_strength': factory_data['manpower_strength'],
-        'employee_month': factory_data['employee_month'],
+        'production': state['production'],
+        'heats': state['heats'],
+        'monthly_production': state['monthly_production'],
+        'safety_slogan': state['safety_slogan'],
+        'manpower_strength': state['manpower_strength'],
+        'employee_month': state['employee_month'],
         'image_path': get_current_image(),
-        'image_expiry': factory_data['image_expiry'],
-        'last_updated': factory_data['last_updated']
+        'image_expiry': state['image_expiry'],
+        'last_updated': state['last_updated']
     })
 
 @app.route('/api/data')
 def api_data():
+    from datetime import datetime
+
+    state = get_display_state()
+
+    # Ensure last_updated is a string (in case it's a datetime object)
+    if isinstance(state['last_updated'], datetime):
+        last_updated_str = state['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        last_updated_str = str(state['last_updated'])
+
     return {
         'current_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'production': factory_data['production'],
-        'heats': factory_data['heats'],
-        'monthly_production': factory_data['monthly_production'],
-        'safety_slogan': factory_data['safety_slogan'],
-        'manpower_strength': factory_data['manpower_strength'],
-        'employee_month': factory_data['employee_month'],
+        'production': state['production'],
+        'heats': state['heats'],
+        'monthly_production': state['monthly_production'],
+        'safety_slogan': state['safety_slogan'],
+        'manpower_strength': state['manpower_strength'],
+        'employee_month': state['employee_month'],
         'image_path': get_current_image(),
-        'last_updated': factory_data['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+        'last_updated': last_updated_str
     }
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
