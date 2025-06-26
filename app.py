@@ -1,24 +1,27 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-import os
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+import os
 import uuid
 
+# Load environment variables from .env if present
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'  # Change this in production
+app.secret_key = 'your-secret-key-change-this'  # Set securely in production!
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'changeme')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
-
-# Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# In-memory data (to be replaced with a database later)
+# In-memory factory data
 factory_data = {
     'production': 0,
     'heats': 0,
@@ -39,16 +42,32 @@ def is_image_expired():
     return expiry and datetime.now() > expiry
 
 def get_current_image():
-    if factory_data['image_path'] and not is_image_expired():
+    if factory_data['image_path']:
+        if is_image_expired():
+            factory_data['image_path'] = None
+            factory_data['image_expiry'] = None
+            return None
         return factory_data['image_path']
-    elif is_image_expired():
-        factory_data['image_path'] = None
-        factory_data['image_expiry'] = None
     return None
+
+def cleanup_uploads_folder():
+    """Remove all unused images in the uploads folder except the current active image"""
+    active_image = factory_data.get('image_path')
+    upload_dir = os.path.join(app.static_folder, 'uploads')
+
+    for filename in os.listdir(upload_dir):
+        filepath = os.path.join(upload_dir, filename)
+
+        # If it's not the active image, delete it
+        if f'uploads/{filename}' != active_image:
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                print(f"⚠️ Failed to remove old image {filename}: {e}")
+
 
 @app.route('/')
 def display():
-    current_image = get_current_image()
     return render_template('display.html', **{
         'current_time': datetime.now(),
         'production': factory_data['production'],
@@ -57,7 +76,7 @@ def display():
         'safety_slogan': factory_data['safety_slogan'],
         'manpower_strength': factory_data['manpower_strength'],
         'employee_month': factory_data['employee_month'],
-        'image_path': current_image,
+        'image_path': get_current_image(),
         'last_updated': factory_data['last_updated']
     })
 
@@ -65,7 +84,7 @@ def display():
 def admin():
     if request.method == 'POST':
         password = request.form.get('admin_password', '').strip()
-        if password != 'password1':
+        if password != ADMIN_PASSWORD:
             flash('❌ Incorrect password. Please try again.', 'error')
             return redirect(url_for('admin'))
 
@@ -90,7 +109,6 @@ def admin():
                         datetime.now() + timedelta(seconds=duration)
                         if duration and duration > 0 else None
                     )
-
                     flash('🖼️ Image uploaded successfully!', 'success')
                 elif file and file.filename:
                     flash('⚠️ Invalid file type.', 'error')
@@ -103,6 +121,11 @@ def admin():
             factory_data['last_updated'] = datetime.now()
             flash('✅ Factory metrics updated successfully!', 'success')
 
+            # Cleanup old uploaded images
+            cleanup_uploads_folder()
+
+
+
         except ValueError:
             flash('⚠️ Please enter valid numbers for numeric fields.', 'error')
         except Exception as e:
@@ -110,7 +133,6 @@ def admin():
 
         return redirect(url_for('admin'))
 
-    current_image = get_current_image()
     return render_template('admin.html', **{
         'production': factory_data['production'],
         'heats': factory_data['heats'],
@@ -118,7 +140,7 @@ def admin():
         'safety_slogan': factory_data['safety_slogan'],
         'manpower_strength': factory_data['manpower_strength'],
         'employee_month': factory_data['employee_month'],
-        'image_path': current_image,
+        'image_path': get_current_image(),
         'image_expiry': factory_data['image_expiry'],
         'last_updated': factory_data['last_updated']
     })

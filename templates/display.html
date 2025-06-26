@@ -71,7 +71,7 @@
         }
 
         .metric-label {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             margin-bottom: 10px;
             color: #cccccc;
             text-transform: uppercase;
@@ -79,7 +79,7 @@
         }
 
         .metric-value {
-            font-size: 3rem;
+            font-size: 4.5rem;
             font-weight: bold;
             color: #00ff88;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
@@ -87,7 +87,7 @@
         }
 
         .metric-unit {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             color: #ffffff;
             margin-top: 5px;
         }
@@ -143,7 +143,7 @@
         }
 
         .employee-name {
-            font-size: 1.8rem;
+            font-size: 2.2rem;
             font-weight: bold;
             color: white;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
@@ -186,6 +186,18 @@
                 grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             }
         }
+        @keyframes highlight {
+            0% { background-color: rgba(255, 255, 255, 0.3); }
+            100% { background-color: transparent; }
+        }
+
+        .metric-card {
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+
+        .metric-card.updated {
+            animation: highlight 1s ease;
+        }
         .safety-marquee-container {
             position: relative;
             width: 100%;
@@ -216,6 +228,21 @@
                 transform: translateX(-100%);
             }
         }
+        @media screen and (max-width: 1024px) {
+    .metric-value {
+            font-size: 3rem;
+        }
+
+        .metric-label,
+        .metric-unit {
+            font-size: 1rem;
+        }
+
+        .employee-name {
+            font-size: 1.5rem;
+        }
+    }
+
 
     </style>
 </head>
@@ -270,11 +297,11 @@
                 <div class="employee-name">{{ employee_month }}</div>
             </div>
 
-            {% if image_path %}
-            <div class="image-section">
-                <img src="{{ url_for('static', filename=image_path) }}" alt="Factory Notice">
+            <div class="image-section" id="image-section">
+                {% if image_path %}
+                    <img src="{{ url_for('static', filename=image_path) }}" alt="Factory Notice">
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </div>
 
@@ -283,29 +310,63 @@
     </div>
 
     <script>
-        // Auto-refresh every 60 seconds
-        setTimeout(function() {
-            window.location.reload();
-        }, 60000);
+    // Update time every second
+    function updateTime() {
+        const now = new Date();
+        const options = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        };
+        document.getElementById('datetime').textContent = now.toLocaleDateString('en-US', options);
+    }
 
-        // Update time every second
-        function updateTime() {
-            const now = new Date();
-            const options = {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            };
-            document.getElementById('datetime').textContent = now.toLocaleDateString('en-US', options);
-        }
+    // Call it once immediately and every second after
+    updateTime();
+    setInterval(updateTime, 1000);
 
-        // Update time immediately and then every second
-        updateTime();
-        setInterval(updateTime, 1000);
-    </script>
+    // Update dashboard data every 60 seconds
+    function updateDashboard() {
+        fetch('/api/data')
+            .then(response => response.json())
+            .then(data => {
+                const fields = {
+                    'production': data.production,
+                    'heats': data.heats,
+                    'monthly_production': data.monthly_production,
+                    'manpower_strength': data.manpower_strength,
+                    'safety_slogan': data.safety_slogan,
+                    'employee_month': data.employee_month
+                };
+
+                for (const [id, value] of Object.entries(fields)) {
+                    const el = document.getElementById(id);
+                    if (el && el.textContent != value) {
+                        el.classList.add('updated');
+                        el.textContent = value;
+                        setTimeout(() => el.classList.remove('updated'), 1000);
+                    }
+                }
+
+                // Update image if changed
+                const imageSection = document.getElementById('image-section');
+                if (data.image_path) {
+                    imageSection.innerHTML = `<img src="/static/${data.image_path}" alt="Notice">`;
+                } else {
+                    imageSection.innerHTML = '';
+                }
+
+                // Update time
+                document.getElementById('datetime').textContent = data.current_time;
+            });
+    }
+
+    updateDashboard();
+    setInterval(updateDashboard, 5000); // every 60 seconds
+</script>
 </body>
 </html>
