@@ -6,6 +6,7 @@ import os
 import uuid
 from database import init_db, DB_PATH
 from db_manager import get_display_state, update_display_state  # NEW IMPORT
+from config import SECRET_KEY
 
 # Load environment variables
 load_dotenv()
@@ -14,13 +15,13 @@ load_dotenv()
 init_db()
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this'
+app.secret_key = SECRET_KEY
 
 # Configuration
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'changeme')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH

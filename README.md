@@ -11,3 +11,17 @@ A client-specific Raspberry Pi-based dashboard to show production metrics, safet
 - Python (Flask)
 - SQLite
 - HTML/CSS/JS
+
+## Environment Variables Setup
+
+1. Copy `.env.example` to `.env`:
+   
+   cp .env.example .env
+
+2. Open `.env` and fill in your own values for `SECRET_KEY` and `ADMIN_PASSWORD`.
+
+3. Install dependencies (if not already):
+   
+   pip install -r requirements.txt
+
+The `.env` file is already in `.gitignore` and will not be committed to version control.
